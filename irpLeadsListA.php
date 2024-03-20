@@ -102,10 +102,10 @@ alert($alert); ?>
 </div>
 
 <!-- Czarne tlo przetwarzam -->
-<div id="czarne-tlo-przetwarzam" class="light-box"><span class="glyphicon glyphicon-refresh"></span></div>
+<div id="czarne-tlo-przetwarzam" class="light-box" style="display: none;"><span class="glyphicon glyphicon-refresh"></span></div>
 
 <!-- Formularz przydzielania zadania-->
-<div id="czarne-tlo-przydziel-zadanie-form" class="light-box">
+<div id="czarne-tlo-przydziel-zadanie-form" class="light-box" style="display: none;">
     <div class="panel panel-info" style="width:300px;">
         <div class="panel-heading">
             <span class="panel-title">Przydziel zadanie</span>
