@@ -1,19 +1,74 @@
 <?php
+include_once('config.php');
+$link = mysqlConnect();
+
+// user hardcoded (parametrized query used below because of assumption that it might come from $_POST variable)
+$post_user = 'krzysztof_jarzyna';
+
+// active user query
+$user_query = mysqli_prepare($link, "
+    SELECT CONCAT(imie, '_', nazwisko), koordynator 
+    FROM clf.uzytkownicy WHERE CONCAT(imie, '_', nazwisko) = ?;
+");
+mysqli_stmt_bind_param($user_query, "s", $post_user);
+mysqli_stmt_execute($user_query);
+$user_query_result = mysqli_fetch_array(mysqli_stmt_get_result($user_query));
+
+
+// all users query
+$employees_query = mysqli_query($link, "
+    SELECT CONCAT(imie, '_', nazwisko) AS imie_nazwisko, aktywny FROM clf.uzytkownicy;
+");
+while ($record = mysqli_fetch_assoc($employees_query)) {
+    $pracownicy[] = [
+        'imie_nazwisko' => $record['imie_nazwisko'],
+        'aktywny' => $record['aktywny']
+    ];
+}
+
+$user_mod = $user_query_result[0];
+$dostep_koordynator = $user_query_result[1];
+
 // Zabezpieczenia 
 if(!$dostep_koordynator){$alert = 'notAllowed';}
 
+
 function breadcrumb(){ ?>
-<ol class="breadcrumb">
-    <li><a href=" /index.php">Panel</a></li>
-    <li class="active">IRP 1P</li>
-</ol>
+    <ol class="breadcrumb">
+        <li><a href="/index.php">Panel</a></li>
+        <li class="active">IRP 1P</li>
+    </ol>
+<?php }
+
+function alert($alert){ ?>
+    <script>alert('<?= $alert ?>')</script>
+<?php }
+
+function header_section(){ ?>
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Leads List</title>
+        <script src="https://code.jquery.com/jquery-2.2.4.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/bootbox.js/6.0.0/bootbox.min.js"></script>
+        <script src="https://cdn.datatables.net/2.0.3/js/dataTables.min.js"></script>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">
+        <link rel="stylesheet" href="https://cdn.datatables.net/2.0.3/css/dataTables.dataTables.min.css">
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
 <?php }
 
 
+
 //Pracownicy-opiekunowie
+$wypisz_pracownikow = '';
 foreach ($pracownicy as $key => $value) {
     if($value['aktywny']){
-        $wypisz_pracownikow .= '<option value="'.$key.'">'.$value['imie'].'</option>';
+        $wypisz_pracownikow .= '<option value="'.$key.'">'.$value['imie_nazwisko'].'</option>';
     }
 }
 
@@ -38,10 +93,12 @@ for ($i = 0; $i < 9; $i++) {
     
  
 // HTML
-breadcrumb();
-alert($alert); ?>
+header_section();
+//breadcrumb(); // not visible on print screens therefore I left comment there
+alert('zalogowano jako ' . $user_mod); 
+?>
 
-<div class="containter">
+<div class="container">
     <div class="page-header">
         <h1>IRP 1P</h1>
     </div>
@@ -64,6 +121,7 @@ alert($alert); ?>
                         <th>Telefon</th>
                         <th>E-mail</th>
                         <th style="width: 60px;">Level</th>
+                        <th>Nazwa produktu</th>
                         <th style="width: 50px;">zaznacz</th>
                     </tr>
                 </thead>
@@ -92,6 +150,7 @@ alert($alert); ?>
                         <th>Telefon</th>
                         <th>E-mail</th>
                         <th style="width: 60px;">Level</th>
+                        <th>Nazwa produktu</th>
                         <th style="width: 50px;">zaznacz</th>
                     </tr>
                 </thead>
@@ -111,7 +170,7 @@ alert($alert); ?>
             <span class="panel-title">Przydziel zadanie</span>
             <div class="pull-right">
                 <button class="btn btn-warning btn-xs btn-zamknij-light-box">
-                    <span class="glyphicon glyphicon-remove"></span>
+                    <span class="glyphicon glyphicon-remove">&times;</span>
                 </button>
             </div>
         </div>
@@ -138,6 +197,7 @@ alert($alert); ?>
         </div>
     </div>
 </div>
+</body>
 
 <script type="text/javascript">
 window.onload = function()
@@ -146,22 +206,29 @@ window.onload = function()
     // ZAZNACZ WIELE LEADOW I WYŚWIETL FORMULARZ
     $(document).on('click','.btn-add-task-to-many',function(e)
     {
-        
-
-        
-
-
-
+        var leadsGroup = $(this).parents('.grupa-leadow');
+        var leadsQuantity = $(this).data().ile;
+        $('input[type="checkbox"]', leadsGroup).slice(0, leadsQuantity).prop('checked', true);
+        if (leadsQuantity == 0) {
+            $('input[type="checkbox"]', leadsGroup).prop('checked', false);
+        }
     });
     
+    $(document).on('click','.btn-zamknij-light-box',function(e)
+    {
+        $('#czarne-tlo-przydziel-zadanie-form').hide();
+    });
 
     //ładne formatowanie tabeli
     $('.tabela-leadow').DataTable({
         "retrieve": true,
         "order": [],
         "iDisplayLength": 25,
-        "language": {"url": "//cdn.datatables.net/plug-ins/1.10.7/i18n/Polish.json"},
-        fnDrawCallback: function(){$("[data-toggle='tooltip']",this.fnGetNodes()).tooltip({"delay": 0,"track": true,"fade": 250});}
+        "language": {"url": "https://cdn.datatables.net/plug-ins/1.10.7/i18n/Polish.json"},
+        fnDrawCallback: function(){
+            // fnGetNodes was throwing errors - commented - it is animation, not necessary for table to work
+            /* $("[data-toggle='tooltip']",this.fnGetNodes()).tooltip({"delay": 0,"track": true,"fade": 250}); */
+        }
     });
     
     // WYŚWIETL FORMULARZ TYLKO DLA ZAZNACZONYCH
@@ -213,7 +280,9 @@ window.onload = function()
                     typ_zadania:106
                 },
                 dataType: "json",
-                beforeSend: function(){pokazPrzetwarzam();}
+                beforeSend: function(){
+                    /* pokazPrzetwarzam(); */ // function was undefined, it is commented to eliminate JS bugs
+                }
             })
             .success(function(data){
                 if(data.status === 'success'){
@@ -250,7 +319,9 @@ function  pokaz_leady(){
         method: "POST",
         data: {user:'<?=$user_mod?>'},
         dataType: "json",
-        beforeSend: function(){pokazPrzetwarzam();}
+        beforeSend: function(){
+            /* pokazPrzetwarzam(); */ // function was undefined, it is commented to eliminate JS bugs
+        }
     })
     .success(function(data){
         if(data.status === 'success')
@@ -268,15 +339,16 @@ function  pokaz_leady(){
                     var d4 = (d3.length === 9 ) ? d3.replace(/^(\d{3})(\d{3})(\d{3})$/, '$1 $2 $3') : v.telefon;
                     var level = v.level === 'klient' ? '<span class="label label-primary">KLIENT</span>' : '<span class="label label-success">UCZESTNIK</span>';                
                     var rowNode = table.row.add( [
-                        '<a href="/klientKarta&id='+v.klient_id+'" target="_blank">'+v.klient+'&nbsp;<small><span class="glyphicon glyphicon-new-window"></span></small></a>', 
+                        '<a href="/klientKarta&id='+v.klient_id+'" target="_blank" rel="noopener noreferer">'+v.klient+'&nbsp;<small><span class="glyphicon glyphicon-new-window"></span></small></a>', 
                         d4,
                         v.email,
                         level,
+                        v.nazwa_produktu,
                         '<input data-klient-id="'+v.klient_id+'" type="checkbox">'
                     ] 
                     ).node();
                     $(rowNode).attr('id','klient-'+v.klient_id+'-row');
-                    $('td:eq(4),td:eq(5)',rowNode).addClass( 'text-center');
+                    //$('td:eq(4),td:eq(5)',rowNode).addClass( 'text-center'); // was working only for first table - align moved to CSS
                 });
                 table.draw();
             }
@@ -290,4 +362,8 @@ function  pokaz_leady(){
     .complete(function(){$('#czarne-tlo-przetwarzam').hide();});
 };
 
+
+<?php mysqli_close($link); ?>
+
 </script>
+</html>
